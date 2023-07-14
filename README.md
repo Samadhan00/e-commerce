@@ -1,79 +1,33 @@
-# e-commerce
-Jumbotail Project of E-Commerce
+Jumbotail Data Engineering Hiring Assignment Solution
 
-from flask import Flask, request
-from threading import Thread
-from queue import Queue
-import sqlite3
+The problem statement requires the implementation of a system for tracking user journeys within an e-commerce application. The solution involves several components: Event Producer, Webhook, In-memory Queue, Queue Consumer, and Database. Here's an outline of the solution:
+1. Event Producer:
+   - Implement a DRIVER class that generates events for each user.
+   - Simulate user behavior and generate events based on the user's journey within the application.
+   - Implement batching to optimize event sending.
+   - Monitor the API's performance by logging response times.
+2. Webhook:
+   - Create a server that acts as a receiver for events, implemented as a REST API.
+   - The server should listen for incoming events at "localhost:8888/webhook".
+   - Process requests asynchronously and handle errors by implementing a retrial mechanism.
+   - Push events to the in-memory queue.
+3. In-memory Queue:
+   - Select an in-memory queue system of your choice.
+   - Use the queue to enable asynchronous behavior for event processing.
+   - Events pushed to the queue by the webhook will be consumed by the Queue Consumer.
+4. Queue Consumer:
+   - Develop a consumer that retrieves events from the in-memory queue in batches.
+   - Insert the retrieved events into the chosen database.
+   - Implement a retrial mechanism to handle errors during the insertion process.
+   - Handle duplicate events coming from the client.
 
-app = Flask(__name__)
 
-eventQueue = Queue()
+5. Database:
+   - Select a suitable database for storing the events.
+   - Design the Event entity to facilitate the extraction of necessary information for generating the desired output.
+   - Handle multiple asynchronous write requests to the database efficiently.
+   
+Final Output:
+1. Calculate the percentage of users at each stage of the user journey.
+2. Evaluate the performance of different cities based on the percentage of users from each city.
 
-conn = sqlite3.connect('user_journey.db')
-cursor = conn.cursor()
-
-cursor.execute('''CREATE TABLE IF NOT EXISTS events
-                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  user_id INTEGER,
-                  step INTEGER,
-                  city TEXT,
-                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
-
-class DRIVER:
-    def generateEvent(self, user):
-        # Generate events for each user
-        # Consider user behavior, event ratios, order of events, etc.
-        # Implement batching for sending events
-        # Log response times of API calls
-        event = {
-            'user_id': user,
-            'step': 1,
-            'city': 'City X'
-        }
-        return event
-
-@app.route('/webhook', methods=['POST'])
-def eventWebhook():
-    events = request.get_json()
-    for event in events:
-        eventQueue.put(event)
-    return "Success"
-
-def consumeEvents():
-    while True:
-        events = []
-        while not eventQueue.empty():
-            events.append(eventQueue.get())
-        
-        for event in events:
-            cursor.execute("INSERT INTO events (user_id, step, city) VALUES (?, ?, ?)",
-                           (event['user_id'], event['step'], event['city']))
-            conn.commit()
-
-def calculateUserPercentage():
-    total_users = cursor.execute("SELECT COUNT(DISTINCT user_id) FROM events").fetchone()[0]
-    steps = [1, 2, 3, 4, 5, 6]
-    for step in steps:
-        cursor.execute("SELECT COUNT(*) FROM events WHERE step = ?", (step,))
-        count = cursor.fetchone()[0]
-        print(f"Percentage of users in step {step}: {count * 100 / total_users}%")
-
-def evaluateCityPerformance():
-    total_users = cursor.execute("SELECT COUNT(DISTINCT user_id) FROM events").fetchone()[0]
-    cursor.execute("SELECT city, COUNT(*) FROM events GROUP BY city")
-    city_data = cursor.fetchall()
-    for city, count in city_data:
-        print(f"City: {city}, Percentage of users: {count * 100 / total_users}%")
-
-if __name__ == '__main__':
-    consumerThread = Thread(target=consumeEvents)
-    consumerThread.start()
-    
-    driver = DRIVER()
-    for i in range(100):  # Simulate 100 users
-        user = i + 1
-        event = driver.generateEvent(user)
-        eventQueue.put(event)
-    
-    app.run(host='localhost', port=8888)
